@@ -2,6 +2,59 @@
 #include <GLFW/glfw3.h>
 #include <iostream>
 
+static unsigned int CompileShader(unsigned int type, const std::string& source){
+    unsigned int id = glCreateShader(type);
+    const char* src = source.c_str(); // this is a pointer, so if source is freed from memory, src will point to random data
+    glShaderSource(id, 1, &src, nullptr);
+    // id is the "index" of the shader
+    // count is how many shader sources are we passing
+    // string are the array(s) that contain the source of the shader (needs to be a pointer to a pointer)
+    // length is an array of lengths for each source? so here nullptr, because it's just one
+
+    glCompileShader(id);
+
+    int result;
+    glGetShaderiv(id, GL_COMPILE_STATUS, &result);
+    // the i in iv means that it wants and integer, the v means that it wants a vector (here just a pointer)
+
+    if(result == GL_FALSE){
+        int length;
+        glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length);
+        char* message = (char*)alloca(length * sizeof(char));
+        // you could just do char* message = new char[length]. This is just a C function that you can use instead
+
+        glGetShaderInfoLog(id, length, &length, message);
+        std::cout << "Failed to compile " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") <<" shader!" << std::endl;
+        std::cout << message << std::endl;
+        glDeleteShader(id);
+        return 0;
+    }
+
+    return id;
+};
+
+static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragmentShader){
+    // normally you would probably load the shaders from a file, but here we'll write them out for demonstration purposes
+    unsigned int program = glCreateProgram();
+    unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader);
+    // you can use GLuint to use openGL's types, but if you're working with multiple graphics APIs, you'll have to include openGL everywhere
+    // so better to just use the standard types
+
+    unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragmentShader);
+
+    glAttachShader(program, vs);
+    glAttachShader(program, fs);
+    glLinkProgram(program);
+    glValidateProgram(program);
+
+    // You can delete shaders now, since they're linked
+    // You should technically detach them first, but it's kind of pointless and makes debugging way harder
+    glDeleteShader(vs);
+    glDeleteShader(fs);
+
+    return program;
+}
+
 int main(void)
 {
     GLFWwindow* window;
@@ -69,6 +122,31 @@ int main(void)
     // because the fragment shader may be called millions of times you should optimize it and do most heavy calculations in the vertex shader
     // since you can pass data from the vertex shader to the pixel shader
 
+    std::string vertexShader = 
+        "#version 330 core\n"
+        "\n"
+        "layout(location = 0) in vec4 position;\n" // 0 is the index of the attribute assigned above (the 6 floats)
+        "\n"
+        "void main()\n"
+        "{\n"
+        "   gl_Position = position;\n"
+        "}\n";
+
+    std::string fragmentShader = 
+        "#version 330 core\n"
+        "\n"
+        "layout(location = 0) out vec4 color;\n" // 0 is the index of the attribute assigned above (the 6 floats)
+        "\n"
+        "void main()\n"
+        "{\n"
+        "   color = vec4(1.0, 0.0, 0.0, 1.0);\n"
+        "}\n";
+
+    unsigned int shader = CreateShader(vertexShader, fragmentShader);
+    
+    // Biding shader
+    glUseProgram(shader);
+
     /* Loop until the user closes the window */
     while (!glfwWindowShouldClose(window))
     {
@@ -86,6 +164,8 @@ int main(void)
         /* Poll for and process events */
         glfwPollEvents();
     }
+
+    glDeleteProgram(shader);
 
     glfwTerminate();
     return 0;
