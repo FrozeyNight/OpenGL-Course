@@ -1,6 +1,45 @@
 #include <GL/glew.h>
 #include <GLFW/glfw3.h>
+
 #include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+
+struct ShaderProgramSource{
+    std::string VertexSource;
+    std::string FragmentSource;
+};
+
+static ShaderProgramSource ParseShader(const std::string& filepath){
+    // using a modern C++ way of reading files, though in something like a game engine you probably want to use the C file API
+    std::ifstream stream(filepath);
+
+    enum class ShaderType{
+        NONE = -1, VERTEX = 0, FRAGMENT = 1
+    };
+
+    std::string line;
+    std::stringstream ss[2]; // we initialize 2 in the same line this way
+    ShaderType type = ShaderType::NONE;
+    while (getline(stream, line)){
+        if(line.find("#shader") != std::string::npos){
+            if(line.find("vertex") != std::string::npos){
+                type = ShaderType::VERTEX;
+            }
+            else if(line.find("fragment") != std::string::npos){
+                type = ShaderType::FRAGMENT;
+            }
+        }
+        else{
+            // doing it this way makes it so we don't have to make an if statement that would add the lines to the correct stream
+            ss[(int)type] << line << '\n';
+        }
+    }
+
+    // returning as a ShaderProgramSource struct
+    return { ss[0].str(), ss[1].str() };
+}
 
 static unsigned int CompileShader(unsigned int type, const std::string& source){
     unsigned int id = glCreateShader(type);
@@ -16,6 +55,7 @@ static unsigned int CompileShader(unsigned int type, const std::string& source){
     int result;
     glGetShaderiv(id, GL_COMPILE_STATUS, &result);
     // the i in iv means that it wants and integer, the v means that it wants a vector (here just a pointer)
+    // this returns a parameter from a shader object
 
     if(result == GL_FALSE){
         int length;
@@ -80,11 +120,24 @@ int main(void)
 
     std::cout << glGetString(GL_VERSION) << std::endl;
 
-    float positions[6] = {
-        -0.5f, -0.5f,
-         0.0f,  0.5f,
-         0.5f, -0.5f
+    float positions[] = {
+        -0.5f,-0.5f, // 0
+         0.5f,-0.5f, // 1
+         0.5f, 0.5f, // 2
+        -0.5f, 0.5f, // 3
     };
+
+    // using unsigned ints, but if you need to save memory use unsigned char or unsigned short
+    // you CAN'T use signed variables for this. It won't work and you won't get any error messages
+    unsigned int indices[] = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+    // index buffers allow us to reuse vertices 
+    // (because for example you only really need 4 points to draw a square, so instead of drawing 6 (GPU draws using triangles), you can draw 4 and resuse 2 of them)
+    // it's simply an array of indices for the vertex buffer
+
 
     // openGL is a state machine, which means that you set states and enable or disable them (for the most part) 
 
@@ -99,7 +152,7 @@ int main(void)
     glBindBuffer(GL_ARRAY_BUFFER, buffer);
     // "target" means what is the purpose of this (here just an array)
 
-    glBufferData(GL_ARRAY_BUFFER, 6 * sizeof(float), positions, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(float), positions, GL_STATIC_DRAW);
     // target, size of the buffer in bytes, pointer to the buffer, STATIC(made once but called a lot of times) DRAW(well we want to draw it)
     // the STATIC and DRAW are just hints, so if you for example use STATIC and modify it during runtime it will still work, but will be slower
     // also good documentation docs.GL
@@ -114,7 +167,7 @@ int main(void)
     // type - in what variable type is the data
     // do you want to normalize the data to a float (I think)
     // stride is how many bytes does it have to jump to get to another vertex
-    // pointer is how many bytes does it have to jump to get to this attribute in each vertex
+    // pointer is how many bytes does it have to jump to get to this attribute in each vertex - not true?
     // the pointer has to be well a const pointer, so you have to cast it (0 specifically doesn't but figured I should show it here)
 
     // the vertex shader is called first and determines where exactly to put each vertex on the screen and prepares attributes for the pixel shader (primarily, it does other stuff too)
@@ -122,27 +175,18 @@ int main(void)
     // because the fragment shader may be called millions of times you should optimize it and do most heavy calculations in the vertex shader
     // since you can pass data from the vertex shader to the pixel shader
 
-    std::string vertexShader = 
-        "#version 330 core\n"
-        "\n"
-        "layout(location = 0) in vec4 position;\n" // 0 is the index of the attribute assigned above (the 6 floats)
-        "\n"
-        "void main()\n"
-        "{\n"
-        "   gl_Position = position;\n"
-        "}\n";
+    unsigned int ibo; // ibo stands for index buffer object
+    glGenBuffers(1, &ibo);
+    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
 
-    std::string fragmentShader = 
-        "#version 330 core\n"
-        "\n"
-        "layout(location = 0) out vec4 color;\n" // 0 is the index of the attribute assigned above (the 6 floats)
-        "\n"
-        "void main()\n"
-        "{\n"
-        "   color = vec4(1.0, 0.0, 0.0, 1.0);\n"
-        "}\n";
+    ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
+    std::cout << "VERTEX" << std::endl;
+    std::cout << source.VertexSource << std::endl;
+    std::cout << "FRAGMENT" << std::endl;
+    std::cout << source.FragmentSource << std::endl;
 
-    unsigned int shader = CreateShader(vertexShader, fragmentShader);
+    unsigned int shader = CreateShader(source.VertexSource, source.FragmentSource);
     
     // Biding shader
     glUseProgram(shader);
@@ -153,8 +197,15 @@ int main(void)
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // Drawing using the index buffer
+        // This is the main way you display things using OpenGL:
+        // Create Vertex Buffer -> Create Index Buffer -> glDrawElements
+        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        // count is the number of indices NOT vertices 
+        // indices is nullptr here, because it's bound
+
         // This draws the currently bound buffer (so the one we specified before this loop)
-        glDrawArrays(GL_TRIANGLES, 0, 3);
+        //glDrawArrays(GL_TRIANGLES, 0, 6);
         // If we would bind a different buffer, it would use that one instead
         // That's why we don't pass the buffer to this function
 
