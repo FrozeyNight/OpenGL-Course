@@ -6,6 +6,30 @@
 #include <string>
 #include <sstream>
 
+// Error handling in OpenGL
+// Without setting anything up if you for example were to pass GL_INT instead of GL_UNSIGNED_INT to the glDrawElements call
+// you would get a black screen without any error or log appearing, so incredibly hard to know what went wrong
+
+// GLGetError
+// Very old, so compatible with every version and popular
+// You call it before and after a function you suspect might be causing the issue and see if that call generated any errors
+
+// GlDebugMessageCallback
+// calls a function you pass to it whenever an error occurs
+// very useful because you don't have to add GlGetError calls everywhere, it simply gets called when an error occurs
+// Returns readable error messages instead of just error codes
+// is quite recent (OpenGL 4.3), so not compatible with older versions
+
+static void GLClearError(){
+    while(glGetError() != GL_NO_ERROR);
+}
+
+static void GLCheckError(){
+    while (GLenum error = glGetError()){ // loops until error becomes false (0) (because glGetError returns 0 when there are no errors in the queue)
+        std::cout << "[OpenGL Error] (" << error << ")" << std::endl;
+    }
+}
+
 struct ShaderProgramSource{
     std::string VertexSource;
     std::string FragmentSource;
@@ -197,12 +221,18 @@ int main(void)
         /* Render here */
         glClear(GL_COLOR_BUFFER_BIT);
 
+        // clearing errors from before a suspect function is called
+        GLClearError();
+
         // Drawing using the index buffer
         // This is the main way you display things using OpenGL:
         // Create Vertex Buffer -> Create Index Buffer -> glDrawElements
-        glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr);
+        glDrawElements(GL_TRIANGLES, 6, GL_INT, nullptr);
         // count is the number of indices NOT vertices 
         // indices is nullptr here, because it's bound
+
+        // checking for errors as soon as the suspect function is called
+        GLCheckError();
 
         // This draws the currently bound buffer (so the one we specified before this loop)
         //glDrawArrays(GL_TRIANGLES, 0, 6);
