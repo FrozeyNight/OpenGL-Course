@@ -20,15 +20,40 @@
 // Returns readable error messages instead of just error codes
 // is quite recent (OpenGL 4.3), so not compatible with older versions
 
+// needed for raise(SIGTRAP); to work (for creating breakpoints using code)
+#include <signal.h>
+
+// this is a C++ macro. It basically replaced code before the program is compiled 
+// so here we use it to just write GLCall(function) instead of having to call GLClearError
+// and GLLogCall before and after every function
+#define ASSERT(x) if (!(x)) raise(SIGTRAP);
+
+// the backslash "\" allows us to write out macros without having to fit everything in a single line
+// the last line doesn't need a semicolon, because you will add it whenever you call GLCall, since it looks more natural
+// (if you added the semicolon here you could write GLCall(function) among the rest of the code instead of GLCall(function);)
+#define GLCall(x) GLClearError();\
+    x;\
+    ASSERT(GLLogCall(#x, __FILE__, __LINE__))
+    // # before x means to turn x into a c string
+    // __FILE__ gives the file name of the file from which this is called
+    // __LINE__ gives the number of the line from which this is called 
+
 static void GLClearError(){
     while(glGetError() != GL_NO_ERROR);
 }
 
-static void GLCheckError(){
+// previously named GLCheckError
+static bool GLLogCall(const char* function, const char* file, int line){
     while (GLenum error = glGetError()){ // loops until error becomes false (0) (because glGetError returns 0 when there are no errors in the queue)
-        std::cout << "[OpenGL Error] (" << error << ")" << std::endl;
+        std::cout << "[OpenGL Error] (" << error << "): " << function << " " << file << ":" << line << std::endl;
+        return false;
     }
+    return true;
 }
+
+// You can now simply wrap every OpenGL function inside GLCall() and it will display error messages
+// There are problems with this, since you won't be able to use it to run single line if statements 
+// but this just serves as a basic example 
 
 struct ShaderProgramSource{
     std::string VertexSource;
@@ -168,24 +193,24 @@ int main(void)
     unsigned int buffer;
     
     // Creating 1 buffer and sending it's ID to the "buffer" variable
-    glGenBuffers(1, &buffer);
+    GLCall(glGenBuffers(1, &buffer));
     // everything in openGL has an ID (just an integer, 0 usually means bad)
     // so if you want to make a triangle for example you make 1 buffer for it and then pass it's ID every time you want to draw it
 
     // selecting in openGL is called binding
-    glBindBuffer(GL_ARRAY_BUFFER, buffer);
+    GLCall(glBindBuffer(GL_ARRAY_BUFFER, buffer));
     // "target" means what is the purpose of this (here just an array)
 
-    glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(float), positions, GL_STATIC_DRAW);
+    GLCall(glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(float), positions, GL_STATIC_DRAW));
     // target, size of the buffer in bytes, pointer to the buffer, STATIC(made once but called a lot of times) DRAW(well we want to draw it)
     // the STATIC and DRAW are just hints, so if you for example use STATIC and modify it during runtime it will still work, but will be slower
     // also good documentation docs.GL
 
     // enables vertex attributes
-    glEnableVertexAttribArray(0);
+    GLCall(glEnableVertexAttribArray(0));
     // in openGL order doesn't matter as long as you bind the buffer you're working on
 
-    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*)0);
+    GLCall(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*)0));
     // index is where it should be in the "array" of the shader, since it calls them more or less one by one
     // size is basically in how many dimensions you want to draw something (i think) (how many attributes in one vertex?)
     // type - in what variable type is the data
@@ -200,9 +225,9 @@ int main(void)
     // since you can pass data from the vertex shader to the pixel shader
 
     unsigned int ibo; // ibo stands for index buffer object
-    glGenBuffers(1, &ibo);
-    glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW);
+    GLCall(glGenBuffers(1, &ibo));
+    GLCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo));
+    GLCall(glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW));
 
     ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
     std::cout << "VERTEX" << std::endl;
@@ -219,20 +244,26 @@ int main(void)
     while (!glfwWindowShouldClose(window))
     {
         /* Render here */
-        glClear(GL_COLOR_BUFFER_BIT);
+        GLCall(glClear(GL_COLOR_BUFFER_BIT));
 
         // clearing errors from before a suspect function is called
-        GLClearError();
+        //GLClearError();
 
         // Drawing using the index buffer
         // This is the main way you display things using OpenGL:
         // Create Vertex Buffer -> Create Index Buffer -> glDrawElements
-        glDrawElements(GL_TRIANGLES, 6, GL_INT, nullptr);
+        //glDrawElements(GL_TRIANGLES, 6, GL_INT, nullptr);
         // count is the number of indices NOT vertices 
         // indices is nullptr here, because it's bound
 
         // checking for errors as soon as the suspect function is called
-        GLCheckError();
+        //GLCheckError();
+        // This will return an error code in decimal
+        // To check what it means go to definition of the opengl/glew header and look for the hexadecimal representation of the error code
+
+        //ASSERT(GLLogCall());
+
+        GLCall(glDrawElements(GL_TRIANGLES, 6, GL_INT, nullptr));
 
         // This draws the currently bound buffer (so the one we specified before this loop)
         //glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -246,7 +277,7 @@ int main(void)
         glfwPollEvents();
     }
 
-    glDeleteProgram(shader);
+    GLCall(glDeleteProgram(shader));
 
     glfwTerminate();
     return 0;
