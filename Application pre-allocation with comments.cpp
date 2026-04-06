@@ -1,0 +1,356 @@
+#include <GL/glew.h>
+#include <GLFW/glfw3.h>
+
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <sstream>
+
+// Error handling in OpenGL
+// Without setting anything up if you for example were to pass GL_INT instead of GL_UNSIGNED_INT to the glDrawElements call
+// you would get a black screen without any error or log appearing, so incredibly hard to know what went wrong
+
+// GLGetError
+// Very old, so compatible with every version and popular
+// You call it before and after a function you suspect might be causing the issue and see if that call generated any errors
+
+// GlDebugMessageCallback
+// calls a function you pass to it whenever an error occurs
+// very useful because you don't have to add GlGetError calls everywhere, it simply gets called when an error occurs
+// Returns readable error messages instead of just error codes
+// is quite recent (OpenGL 4.3), so not compatible with older versions
+
+// needed for raise(SIGTRAP); to work (for creating breakpoints using code)
+#include <signal.h>
+
+// this is a C++ macro. It basically replaced code before the program is compiled 
+// so here we use it to just write GLCall(function) instead of having to call GLClearError
+// and GLLogCall before and after every function
+#define ASSERT(x) if (!(x)) raise(SIGTRAP);
+
+// the backslash "\" allows us to write out macros without having to fit everything in a single line
+// the last line doesn't need a semicolon, because you will add it whenever you call GLCall, since it looks more natural
+// (if you added the semicolon here you could write GLCall(function) among the rest of the code instead of GLCall(function);)
+#define GLCall(x) GLClearError();\
+    x;\
+    ASSERT(GLLogCall(#x, __FILE__, __LINE__))
+    // # before x means to turn x into a c string
+    // __FILE__ gives the file name of the file from which this is called
+    // __LINE__ gives the number of the line from which this is called 
+
+static void GLClearError(){
+    while(glGetError() != GL_NO_ERROR);
+}
+
+// previously named GLCheckError
+static bool GLLogCall(const char* function, const char* file, int line){
+    while (GLenum error = glGetError()){ // loops until error becomes false (0) (because glGetError returns 0 when there are no errors in the queue)
+        std::cout << "[OpenGL Error] (" << error << "): " << function << " " << file << ":" << line << std::endl;
+        return false;
+    }
+    return true;
+}
+
+// You can now simply wrap every OpenGL function inside GLCall() and it will display error messages
+// There are problems with this, since you won't be able to use it to run single line if statements 
+// but this just serves as a basic example 
+
+// a Render works like this: you give it a command and it renders that thing
+
+struct ShaderProgramSource{
+    std::string VertexSource;
+    std::string FragmentSource;
+};
+
+static ShaderProgramSource ParseShader(const std::string& filepath){
+    // using a modern C++ way of reading files, though in something like a game engine you probably want to use the C file API
+    std::ifstream stream(filepath);
+
+    enum class ShaderType{
+        NONE = -1, VERTEX = 0, FRAGMENT = 1
+    };
+
+    std::string line;
+    std::stringstream ss[2]; // we initialize 2 in the same line this way
+    ShaderType type = ShaderType::NONE;
+    while (getline(stream, line)){
+        if(line.find("#shader") != std::string::npos){
+            if(line.find("vertex") != std::string::npos){
+                type = ShaderType::VERTEX;
+            }
+            else if(line.find("fragment") != std::string::npos){
+                type = ShaderType::FRAGMENT;
+            }
+        }
+        else{
+            // doing it this way makes it so we don't have to make an if statement that would add the lines to the correct stream
+            ss[(int)type] << line << '\n';
+        }
+    }
+
+    // returning as a ShaderProgramSource struct
+    return { ss[0].str(), ss[1].str() };
+}
+
+static unsigned int CompileShader(unsigned int type, const std::string& source){
+    GLCall(unsigned int id = glCreateShader(type));
+    const char* src = source.c_str(); // this is a pointer, so if source is freed from memory, src will point to random data
+    GLCall(glShaderSource(id, 1, &src, nullptr));
+    // id is the "index" of the shader
+    // count is how many shader sources are we passing
+    // string are the array(s) that contain the source of the shader (needs to be a pointer to a pointer)
+    // length is an array of lengths for each source? so here nullptr, because it's just one
+
+    GLCall(glCompileShader(id));
+
+    int result;
+    GLCall(glGetShaderiv(id, GL_COMPILE_STATUS, &result));
+    // the i in iv means that it wants and integer, the v means that it wants a vector (here just a pointer)
+    // this returns a parameter from a shader object
+
+    if(result == GL_FALSE){
+        int length;
+        GLCall(glGetShaderiv(id, GL_INFO_LOG_LENGTH, &length));
+        char* message = (char*)alloca(length * sizeof(char));
+        // you could just do char* message = new char[length]. This is just a C function that you can use instead
+
+        GLCall(glGetShaderInfoLog(id, length, &length, message));
+        std::cout << "Failed to compile " << (type == GL_VERTEX_SHADER ? "vertex" : "fragment") <<" shader!" << std::endl;
+        std::cout << message << std::endl;
+        GLCall(glDeleteShader(id));
+        return 0;
+    }
+
+    return id;
+};
+
+static unsigned int CreateShader(const std::string& vertexShader, const std::string& fragmentShader){
+    // normally you would probably load the shaders from a file, but here we'll write them out for demonstration purposes
+    GLCall(unsigned int program = glCreateProgram());
+    GLCall(unsigned int vs = CompileShader(GL_VERTEX_SHADER, vertexShader));
+    // you can use GLuint to use openGL's types, but if you're working with multiple graphics APIs, you'll have to include openGL everywhere
+    // so better to just use the standard types
+
+    GLCall(unsigned int fs = CompileShader(GL_FRAGMENT_SHADER, fragmentShader));
+
+    GLCall(glAttachShader(program, vs));
+    GLCall(glAttachShader(program, fs));
+    GLCall(glLinkProgram(program));
+    GLCall(glValidateProgram(program));
+
+    // You can delete shaders now, since they're linked
+    // You should technically detach them first, but it's kind of pointless and makes debugging way harder
+    GLCall(glDeleteShader(vs));
+    GLCall(glDeleteShader(fs));
+
+    return program;
+}
+
+int main(void)
+{
+    GLFWwindow* window;
+
+    /* Initialize the library */
+    if (!glfwInit())
+        return -1;
+
+    // Setting the version of OpenGL and choosing the CORE profile
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    /* Create a windowed mode window and its OpenGL context */
+    window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
+    if (!window)
+    {
+        glfwTerminate();
+        return -1;
+    }
+
+    /* Make the window's context current */
+    glfwMakeContextCurrent(window);
+
+    // makes the window render in the monitor's? framerate
+    glfwSwapInterval(1);
+
+    if(glewInit() != GLEW_OK){
+        std::cout << "Error!" << std::endl;
+    }
+
+    //std::cout << glGetString(GL_VERSION) << std::endl;
+
+    float positions[] = {
+        -0.5f,-0.5f, // 0
+         0.5f,-0.5f, // 1
+         0.5f, 0.5f, // 2
+        -0.5f, 0.5f, // 3
+    };
+
+    // using unsigned ints, but if you need to save memory use unsigned char or unsigned short
+    // you CAN'T use signed variables for this. It won't work and you won't get any error messages
+    unsigned int indices[] = {
+        0, 1, 2,
+        2, 3, 0
+    };
+
+    // Creating a Vertex Array
+    unsigned int vao;
+    GLCall(glGenVertexArrays(1, &vao));
+    GLCall(glBindVertexArray(vao));
+    // you can either use 1 global vertex array and bind vertex buffers, layouts and index buffers everytime
+    // or have vertex arrays for every object you want to draw and pre-bind all of the stuff to it and only call the vertex array when drawing
+    // OpenGL specification recommends using multiple vertex arrays
+
+    // openGL is a state machine, which means that you set states and enable or disable them (for the most part) 
+
+    unsigned int buffer;
+    
+    // Creating 1 buffer and sending it's ID to the "buffer" variable
+    GLCall(glGenBuffers(1, &buffer));
+    // everything in openGL has an ID (just an integer, 0 usually means bad)
+    // so if you want to make a triangle for example you make 1 buffer for it and then pass it's ID every time you want to draw it
+
+    // selecting in openGL is called binding
+    GLCall(glBindBuffer(GL_ARRAY_BUFFER, buffer));
+    // "target" means what is the purpose of this (here just an array)
+
+    GLCall(glBufferData(GL_ARRAY_BUFFER, 4 * 2 * sizeof(float), positions, GL_STATIC_DRAW));
+    // target, size of the buffer in bytes, pointer to the buffer, STATIC(made once but called a lot of times) DRAW(well we want to draw it)
+    // the STATIC and DRAW are just hints, so if you for example use STATIC and modify it during runtime it will still work, but will be slower
+    // also good documentation docs.GL
+
+    // enables vertex attributes
+    GLCall(glEnableVertexAttribArray(0));
+    // this needs a vertex array to exist in order to work (if on the core profile)
+    // in openGL order doesn't matter as long as you bind the buffer you're working on
+
+    // this also needs a vertex array to exist in order to work (if on the core profile)
+    GLCall(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*)0));
+    // index is where it should be in the "array" of the shader, since it calls them more or less one by one
+    // size is basically in how many dimensions you want to draw something (i think) (how many attributes in one vertex?)
+    // type - in what variable type is the data
+    // do you want to normalize the data to a float (I think)
+    // stride is how many bytes does it have to jump to get to another vertex
+    // pointer is how many bytes does it have to jump to get to this attribute in each vertex - not true?
+    // the pointer has to be well a const pointer, so you have to cast it (0 specifically doesn't but figured I should show it here)
+    // The information here (the layout) is NOT stored in the bound vertex buffer
+    // Which I think means that you could set the layout and use multiple different buffers with it bound
+    // the index = 0 is actually making it so this layout is linked to the currently bound buffer, because we have a vertex array
+
+    // the vertex shader is called first and determines where exactly to put each vertex on the screen and prepares attributes for the pixel shader (primarily, it does other stuff too)
+    // the fragment (or pixel) shader rastersizes the image (actually draws and chooses the color of every pixel on screen). Gets called for each pixel on screen
+    // because the fragment shader may be called millions of times you should optimize it and do most heavy calculations in the vertex shader
+    // since you can pass data from the vertex shader to the pixel shader
+
+    // index buffers allow us to reuse vertices 
+    // (because for example you only really need 4 points to draw a square, so instead of drawing 6 (GPU draws using triangles), you can draw 4 and resuse 2 of them)
+    // it's simply an array of indices for the vertex buffer
+    unsigned int ibo; // ibo stands for index buffer object
+    GLCall(glGenBuffers(1, &ibo));
+    GLCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo));
+    GLCall(glBufferData(GL_ELEMENT_ARRAY_BUFFER, 6 * sizeof(unsigned int), indices, GL_STATIC_DRAW));
+
+    ShaderProgramSource source = ParseShader("res/shaders/Basic.shader");
+    /*
+    std::cout << "VERTEX" << std::endl;
+    std::cout << source.VertexSource << std::endl;
+    std::cout << "FRAGMENT" << std::endl;
+    std::cout << source.FragmentSource << std::endl;
+    */
+
+    unsigned int shader = CreateShader(source.VertexSource, source.FragmentSource);
+    
+    // Biding shader
+    GLCall(glUseProgram(shader));
+
+    // Uniforms are a way for the CPU to give data to the GPU
+    // They are set per draw instead of per vertex (which means you can't change uniforms while the draw is happening)
+    // To use uniforms a shader must be currently bound (so glUseProgram(shader) must be called before this)
+
+    // This fetches the location of this variable from the shader
+    GLCall(int location = glGetUniformLocation(shader, "u_Color"));
+    // sometimes even if everything is working as intended this will return -1, because if the uniform is not used
+    // the compiler will remove it for optimization 
+    ASSERT(location != -1);
+    // this sets the fetched variable to something
+    GLCall(glUniform4f(location, 0.8f, 0.3f, 0.8f, 1.0f));
+    // the naming convention is glUniform + what you are sending (here it's 4 floats, so 4f)
+
+    float r = 0.0f;
+    float increment = 0.02f;
+
+    // Unbinding for demonstration
+    GLCall(glBindVertexArray(0));
+    GLCall(glBindBuffer(GL_ARRAY_BUFFER, 0));
+    GLCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0));
+    GLCall(glUseProgram(0));
+
+    /* Loop until the user closes the window */
+    while (!glfwWindowShouldClose(window))
+    {
+        /* Render here */
+        GLCall(glClear(GL_COLOR_BUFFER_BIT));
+
+        // clearing errors from before a suspect function is called
+        //GLClearError();
+
+        // Drawing using the index buffer
+        // This is the main way you display things using OpenGL:
+        // Create Vertex Buffer -> Create Index Buffer -> glDrawElements
+        //glDrawElements(GL_TRIANGLES, 6, GL_INT, nullptr);
+        // count is the number of indices NOT vertices 
+        // indices is nullptr here, because it's bound
+
+        // checking for errors as soon as the suspect function is called
+        //GLCheckError();
+        // This will return an error code in decimal
+        // To check what it means go to definition of the opengl/glew header and look for the hexadecimal representation of the error code
+
+        //ASSERT(GLLogCall());
+
+        // You have to bind like this to draw a specific object without using Vertex Arrays
+        GLCall(glUseProgram(shader));
+        GLCall(glUniform4f(location, r, 0.3f, 0.8f, 1.0f));
+
+        // You can bind the vertex buffer and it's layout with just calling the vertex array
+        // this wasn't mentioned in the video, but you also don't need to bind index buffers, they
+        // are stored in the vertex array too
+        GLCall(glBindVertexArray(vao));
+        // this is an OpenGL "special", since other APIs don't have this feature
+
+        // These are not needed if you have a vertex array
+        //GLCall(glBindBuffer(GL_ARRAY_BUFFER, buffer));
+        //GLCall(glEnableVertexAttribArray(0));
+        //GLCall(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*)0));
+
+        //GLCall(glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, ibo));
+
+
+        GLCall(glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, nullptr));
+
+        if(r > 1.0f){
+            increment = -0.02f;
+        }
+        else if(r < 0.05f){
+            increment = 0.02f;
+        }
+
+        r += increment;
+
+        // This draws the currently bound buffer (so the one we specified before this loop)
+        //glDrawArrays(GL_TRIANGLES, 0, 6);
+        // If we would bind a different buffer, it would use that one instead
+        // That's why we don't pass the buffer to this function
+
+        /* Swap front and back buffers */
+        glfwSwapBuffers(window);
+
+        /* Poll for and process events */
+        glfwPollEvents();
+    }
+
+    GLCall(glDeleteProgram(shader));
+
+    glfwTerminate();
+    return 0;
+}
