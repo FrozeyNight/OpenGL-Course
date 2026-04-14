@@ -9,6 +9,7 @@
 #include "Renderer.h"
 #include "VertexBuffer.h"
 #include "IndexBuffer.h"
+#include "VertexArray.h"
 
 // a Render works like this: you give it a command and it renders that thing
 
@@ -154,36 +155,14 @@ int main(void)
         unsigned int vao;
         GLCall(glGenVertexArrays(1, &vao));
         GLCall(glBindVertexArray(vao));
-        // you can either use 1 global vertex array and bind vertex buffers, layouts and index buffers everytime
-        // or have vertex arrays for every object you want to draw and pre-bind all of the stuff to it and only call the vertex array when drawing
-        // OpenGL specification recommends using multiple vertex arrays
 
-        // openGL is a state machine, which means that you set states and enable or disable them (for the most part) 
-
+        VertexArray va;
         VertexBuffer vb(positions, 4 * 2 * sizeof(float));
 
-        // enables vertex attributes
-        GLCall(glEnableVertexAttribArray(0));
-        // this needs a vertex array to exist in order to work (if on the core profile)
-        // in openGL order doesn't matter as long as you bind the buffer you're working on
+        VertexBufferLayout layout;
+        layout.Push<float>(2);
+        va.AddBuffer(vb, layout);
 
-        // this also needs a vertex array to exist in order to work (if on the core profile)
-        GLCall(glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 2 * sizeof(float), (const void*)0));
-        // index is where it should be in the "array" of the shader, since it calls them more or less one by one
-        // size is basically in how many dimensions you want to draw something (i think) (how many attributes in one vertex?)
-        // type - in what variable type is the data
-        // do you want to normalize the data to a float (I think)
-        // stride is how many bytes does it have to jump to get to another vertex
-        // pointer is how many bytes does it have to jump to get to this attribute in each vertex - not true?
-        // the pointer has to be well a const pointer, so you have to cast it (0 specifically doesn't but figured I should show it here)
-        // The information here (the layout) is NOT stored in the bound vertex buffer
-        // Which I think means that you could set the layout and use multiple different buffers with it bound
-        // the index = 0 is actually making it so this layout is linked to the currently bound buffer, because we have a vertex array
-
-        // the vertex shader is called first and determines where exactly to put each vertex on the screen and prepares attributes for the pixel shader (primarily, it does other stuff too)
-        // the fragment (or pixel) shader rastersizes the image (actually draws and chooses the color of every pixel on screen). Gets called for each pixel on screen
-        // because the fragment shader may be called millions of times you should optimize it and do most heavy calculations in the vertex shader
-        // since you can pass data from the vertex shader to the pixel shader
 
         IndexBuffer ib(indices, 6);
 
@@ -249,10 +228,7 @@ int main(void)
             GLCall(glUseProgram(shader));
             GLCall(glUniform4f(location, r, 0.3f, 0.8f, 1.0f));
 
-            // You can bind the vertex buffer and it's layout with just calling the vertex array
-            // this wasn't mentioned in the video, but you also don't need to bind index buffers, they
-            // are stored in the vertex array too
-            GLCall(glBindVertexArray(vao));
+            va.Bind();
             // this is an OpenGL "special", since other APIs don't have this feature
 
             // These are not needed if you have a vertex array
