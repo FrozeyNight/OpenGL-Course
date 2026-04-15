@@ -40,6 +40,6 @@ public:
         std::runtime_error("No suitable template specialization for this type.");
     }
 
-    inline const std::vector<VertexBufferElement> GetElements() const& {return m_Elements;};
+    inline const std::vector<VertexBufferElement>& GetElements() const {return m_Elements;};
     inline unsigned int GetStride() const { return m_Stride; }
 };
