@@ -10,7 +10,7 @@ private:
     unsigned int m_RendererID;
     std::string m_FilePath;
     unsigned char* m_LocalBuffer; // local storage of the texture
-    int m_Width, m_Height, m_BPP; // BPP - bits per pixel
+    int m_Width, m_Height, m_BPP; // BPP - bytes per pixel
 public:
     Texture(const std::string& path);
     ~Texture();

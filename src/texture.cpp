@@ -1,6 +1,6 @@
 #include "texture.h"
 
-#include "stb_image.h";
+#include "stb_image.h"
 
 Texture::Texture(const std::string& path) 
     : m_RendererID(0), m_FilePath(path), 
@@ -20,8 +20,8 @@ Texture::Texture(const std::string& path)
     // the texture i think (linearly resample everything - no clue what that means)
     GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)); // if the image is too small for what we're putting,
     // it on, it will grow it to fit
-    GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)); // s means x coordinate for textures
-    GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)); // t means y
+    GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE)); // s means x coordinate for textures
+    GLCall(glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE)); // t means y
     // uh i think we're saying we don't want to change the area the picture will occupy (so it doesn't go outside the object
     // we're rendering the texture on?)
 
