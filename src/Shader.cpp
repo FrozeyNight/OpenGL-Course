@@ -118,6 +118,15 @@ void Shader::SetUniform4f(const std::string& name, float v0, float v1, float v2,
     GLCall(glUniform4f(GetUniformLocation(name), v0, v1, v2, v3));
 };
 
+void Shader::SetUniformMat4f(const std::string& name, const glm::mat4& matrix){
+    GLCall(glUniformMatrix4fv(GetUniformLocation(name), 1, GL_FALSE, &matrix[0][0])); 
+    // fv in "glUniformMatrix4fv" means we're passing a float array
+    // count is how many matrixes we're passing
+    // transpose - in memory OpenGL stores matrices by columns, not rows, so if you have a matrix stored by rows, you can
+    // set this to true to change the ordering of the matrix to columns
+    // value - a pointer to the first element of the matrix
+};
+
 int Shader::GetUniformLocation(const std::string& name){
     
     if(m_UniformLocationCache.find(name) != m_UniformLocationCache.end()){
