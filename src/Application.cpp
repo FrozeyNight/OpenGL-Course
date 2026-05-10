@@ -17,6 +17,10 @@
 #include "vendor/glm/glm.hpp"
 #include "vendor/glm/gtc/matrix_transform.hpp"
 
+#include "vendor/imgui/imgui.h"
+#include "vendor/imgui/imgui_impl_opengl3.h"
+#include "vendor/imgui/imgui_impl_glfw.h"
+
 // a Render works like this: you give it a command and it renders that thing
 
 int main(void)
@@ -33,7 +37,7 @@ int main(void)
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
     /* Create a windowed mode window and its OpenGL context */
-    window = glfwCreateWindow(640, 480, "Hello World", NULL, NULL);
+    window = glfwCreateWindow(960, 540, "Hello World", NULL, NULL);
     if (!window)
     {
         glfwTerminate();
@@ -54,10 +58,10 @@ int main(void)
 
     {
         float positions[] = {
-            -0.5f,-0.5f, 0.0f, 0.0f,// 0
-            0.5f,-0.5f, 1.0f, 0.0f,// 1
-            0.5f, 0.5f, 1.0f, 1.0f,// 2
-            -0.5f, 0.5f, 0.0f, 1.0f,// 3
+            100.0f, 100.0f, 0.0f, 0.0f,// 0
+            200.0f, 100.0f, 1.0f, 0.0f,// 1
+            200.0f, 200.0f, 1.0f, 1.0f,// 2
+            100.0f, 200.0f, 0.0f, 1.0f,// 3
         };
         
         unsigned int indices[] = {
@@ -118,15 +122,17 @@ int main(void)
 
         IndexBuffer ib(indices, 6);
 
-        // Projection Matrix
+        /* Projection Matrix
         
         // creating a projection matrix to make the image not stretch to the 4:3 aspect ratio of the window
         // (because we set the window size to 400px by 300px)
-        glm::mat4 projectionMatrix = glm::ortho(-2.0f, 2.0f, -1.5f, 1.5f, -1.0f, 1.0f);
+        //glm::mat4 projectionMatrix = glm::ortho(-2.0f, 2.0f, -1.5f, 1.5f, -1.0f, 1.0f);
         // the first 4 numbers will give a 4:3 aspect ratio (if you multiply them by 2 you get 4,4,3,3)
         // the reason they're halved is to make the image larger
         // the positions refer to the edges of the window from left to top
         // the last 2 numbers go into play if we try to put something outside of the edges (will be explained later)
+        // leftX, rightX, bottomY, topY, farZ, closeZ basically
+        // this also means that 0.0f by 0.0f is the middle (2/4 of width, 1.5/3 of height)
 
         // ortho - orthographic matrix which we use to parse (map all the coords of) a 3D world onto a 2D screen
         // specifically in a way that doesn't make objects that are further away smaller
@@ -137,14 +143,43 @@ int main(void)
         // we do this to get a normalized space (coordinate system, one that goes from -1 to 1 in every axis)
         // it allows us to specify a coordinate system that's different from -1 to 1,
         // for example 1920x1080 and then project it to a -1 to 1 scale, so it can be rendered correctly
-        // if you make something outside the -1 to 1 scale, it will not get rendered
+        // if you make something outside the -1 to 1 scale (outside the coords of this matrix), it will not get rendered
 
         // it's also very important for perspective matrixes, since it can project depth (Z axis)
+        */
+
+        glm::mat4 projectionMatrix = glm::ortho(0.0f, 960.0f, 0.0f, 540.0f, -1.0f, 1.0f);
+
+        /* MVP - Model View Projection Matrices
+            These are the 3 matrices that we multiply our vertex positions with everytime we draw something on screen
+            M - Model matrix - it's the transform of whatever is being drawn (position, rotation and scale)
+            V - View matrix - it's the "camera" (you can adjust the size, position, orientation)
+            P - Projection matrix - already explained in detail (projects the 3D world into a 2D scale)
+
+            you multiply each matrix with the vertex positions in a specific order
+            in OpenGL it's P*V*M*vertexPosition, so reversed order 
+
+            there is no such thing as a camera in OpenGL, so if you want to simulate the "camera" moving to the left,
+            you need to move every oject on screen to the right
+
+            this is basically all the matrix multiplication you need to know to position objects in a 2D or 3D world
+
+            alternative explanation by @fendoroid3788
+            So, basically:
+            Model matrix: defines position, rotation and scale of the vertices of the model in the world.
+            View matrix: defines position and orientation of the "camera".
+            Projection matrix: Maps what the "camera" sees to NDC, taking care of aspect ratio and perspective.
+        */
+
+        glm::mat4 viewMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(-100, 0, 0));
+        glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0, 200, 0));
+
+        glm::mat4 mvp = projectionMatrix * viewMatrix * modelMatrix;
 
         Shader shader("res/shaders/Basic.shader");
         shader.Bind();
         shader.SetUniform4f("u_Color", 0.8f, 0.3f, 0.8f, 1.0f);
-        shader.SetUniformMat4f("u_MVP", projectionMatrix);
+        shader.SetUniformMat4f("u_MVP", mvp);
 
         Texture texture("res/textures/Example.png");
         texture.Bind();
@@ -159,6 +194,10 @@ int main(void)
         float increment = 0.02f;
 
         Renderer renderer;
+
+        ImGui::CreateContext();
+        ImGui::StyleColorsDark();
+        ImGui_ImplGlfw_InitForOpenGL(window, true);
 
         /* Loop until the user closes the window */
         while (!glfwWindowShouldClose(window))

@@ -22,6 +22,7 @@ target_include_directories(OpenGLProject PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/include/vendor/stb_image/
     ${CMAKE_CURRENT_SOURCE_DIR}/include/vendor/glm/
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/vendor/imgui/
     ${CMAKE_CURRENT_SOURCE_DIR}/Dependencies/glew/include
 )
 
