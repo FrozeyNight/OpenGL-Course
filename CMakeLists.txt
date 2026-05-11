@@ -10,7 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_subdirectory(Dependencies/glfw EXCLUDE_FROM_ALL)
 add_subdirectory(Dependencies/glew/build/cmake EXCLUDE_FROM_ALL)
 
-file(GLOB OPENGLPROJECT_SOURCES CONFIGURE_DEPENDS src/*.cpp)
+file(GLOB OPENGLPROJECT_SOURCES CONFIGURE_DEPENDS src/*.cpp src/vendor/imgui/*.cpp)
 
 find_package(OpenGL REQUIRED)
 
