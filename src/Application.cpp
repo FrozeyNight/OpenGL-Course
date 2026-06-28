@@ -58,10 +58,10 @@ int main(void)
 
     {
         float positions[] = {
-            100.0f, 100.0f, 0.0f, 0.0f,// 0
-            200.0f, 100.0f, 1.0f, 0.0f,// 1
-            200.0f, 200.0f, 1.0f, 1.0f,// 2
-            100.0f, 200.0f, 0.0f, 1.0f,// 3
+            -50.0f, -50.0f, 0.0f, 0.0f,// 0
+             50.0f, -50.0f, 1.0f, 0.0f,// 1
+             50.0f,  50.0f, 1.0f, 1.0f,// 2
+            -50.0f,  50.0f, 0.0f, 1.0f,// 3
         };
         
         unsigned int indices[] = {
@@ -171,8 +171,9 @@ int main(void)
             Projection matrix: Maps what the "camera" sees to NDC, taking care of aspect ratio and perspective.
         */
 
-        glm::mat4 viewMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(-100, 0, 0));
+        glm::mat4 viewMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0, 0, 0));
         //glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(0, 200, 0));
+        //glm::mat4 viewMatrix = glm::translate(glm::mat4(1.0f), glm::vec3(-100, 0, 0));
 
         //glm::mat4 mvp = projectionMatrix * viewMatrix * modelMatrix;
 
@@ -201,7 +202,8 @@ int main(void)
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 130");
 
-        glm::vec3 translation(0, 200, 0);
+        glm::vec3 translationA(200, 200, 0);
+        glm::vec3 translationB(400, 200, 0);
 
         /* Loop until the user closes the window */
         while (!glfwWindowShouldClose(window))
@@ -213,15 +215,32 @@ int main(void)
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
-            glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translation);
-            glm::mat4 mvp = projectionMatrix * viewMatrix * modelMatrix;
-
-            shader.Bind();
-            shader.SetUniform4f("u_Color", r, 0.3f, 0.8f, 1.0f);
-            shader.SetUniformMat4f("u_MVP", mvp);
+            {
+                glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translationA);
+                glm::mat4 mvp = projectionMatrix * viewMatrix * modelMatrix;
+                shader.Bind(); // it's slow if you try to bind a shader that's already bound, but here just for show and a bit more robust
+                // normally you would have a thing to check if the shader is already bound or not ^
+                //shader.SetUniform4f("u_Color", r, 0.3f, 0.8f, 1.0f);
+                shader.SetUniformMat4f("u_MVP", mvp);
+                renderer.Draw(va, ib, shader);
+            }
             
 
-            renderer.Draw(va, ib, shader);
+            {
+                glm::mat4 modelMatrix = glm::translate(glm::mat4(1.0f), translationB);
+                glm::mat4 mvp = projectionMatrix * viewMatrix * modelMatrix;
+                shader.Bind();
+                //shader.SetUniform4f("u_Color", r, 0.3f, 0.8f, 1.0f);
+                shader.SetUniformMat4f("u_MVP", mvp);
+                renderer.Draw(va, ib, shader);
+            }
+            /*  Drawing multiple objects
+
+                There are 2 main ways of drawing multiple objects:
+                1. supplying the shader with a different vertex buffer <- not shown in the course
+                2. changing the MVP Matrix (I think that will only allow to have multiple of the same object?)
+                 ^ no because you could still change the texture and stuff in the shader
+            */
 
             if(r > 1.0f){
                 increment = -0.02f;
@@ -236,12 +255,15 @@ int main(void)
             static int counter = 0;
 
             // ImGui debug window elements
-            ImGui::Begin("Debug Window"); // Create a window called "Hello, world!" and append into it.
+            {
+                ImGui::Begin("Debug Window"); // Create a window called "Hello, world!" and append into it.
 
-            ImGui::SliderFloat3("Translation", &translation.x, 0.0f, 960.0f); // Edit 1 float using a slider from 0.0f to 1.0f
+                ImGui::SliderFloat3("Translation A", &translationA.x, 0.0f, 960.0f); // Edit 1 float using a slider from 0.0f to 960.0f
+                ImGui::SliderFloat3("Translation B", &translationB.x, 0.0f, 960.0f); // Edit 1 float using a slider from 0.0f to 960.0f
 
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
+                ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+                ImGui::End();
+            }
 
             ImGui::Render();
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
