@@ -10,7 +10,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 add_subdirectory(Dependencies/glfw EXCLUDE_FROM_ALL)
 add_subdirectory(Dependencies/glew/build/cmake EXCLUDE_FROM_ALL)
 
-file(GLOB OPENGLPROJECT_SOURCES CONFIGURE_DEPENDS src/*.cpp src/vendor/imgui/*.cpp)
+file(GLOB OPENGLPROJECT_SOURCES CONFIGURE_DEPENDS src/*.cpp src/vendor/imgui/*.cpp src/tests/*.cpp)
 
 find_package(OpenGL REQUIRED)
 
@@ -20,6 +20,7 @@ add_executable(OpenGLProject ${OPENGLPROJECT_SOURCES})
 
 target_include_directories(OpenGLProject PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/include/tests/
     ${CMAKE_CURRENT_SOURCE_DIR}/include/vendor/stb_image/
     ${CMAKE_CURRENT_SOURCE_DIR}/include/vendor/glm/
     ${CMAKE_CURRENT_SOURCE_DIR}/include/vendor/imgui/
