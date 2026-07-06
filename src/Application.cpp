@@ -22,6 +22,7 @@
 #include "vendor/imgui/imgui_impl_glfw.h"
 
 #include "tests/TestClearColor.h"
+#include "tests/TestExercise.h"
 
 // a Render works like this: you give it a command and it renders that thing
 
@@ -70,20 +71,52 @@ int main(void)
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 130");
 
-        test::TestClearColor test;
+        test::TestClearColor t1;
+        test::TestExercise t2;
+
+        int testChoice = 0;
 
         while (!glfwWindowShouldClose(window))
         {
             renderer.Clear();
 
-            test.OnUpdate(0.0f);
-            test.OnRender();
+            if(testChoice == 1){
+                t1.OnUpdate(0.0f);
+                t1.OnRender();
+            }
+            else if(testChoice == 2){
+                t2.OnUpdate(0.0f);
+                t2.OnRender();
+            }
 
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
-            test.OnImGuiRender();
+            if(testChoice == 1){
+                t1.OnImGuiRender();
+            }
+            else if(testChoice == 2){
+                t2.OnImGuiRender();
+            }
+
+            ImGui::Begin("Debug Window"); // Create a window called "Hello, world!" and append into it.
+            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            if(testChoice == 0){
+                ImGui::Text("Choose a test:");
+                if(ImGui::Button("Test1")){
+                    testChoice = 1;
+                }
+                else if(ImGui::Button("Test2")){
+                    testChoice = 2;
+                };
+            }
+            else{
+                if(ImGui::Button("Go Back")){
+                    testChoice = 0;
+                }
+            }
+            ImGui::End();
 
             ImGui::Render();
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Renderer.h"
+
 namespace test
 {
     class Test{
@@ -9,6 +11,7 @@ namespace test
 
             virtual void OnUpdate(float deltaTime) {}
             virtual void OnRender() {}
+            virtual void OnRender(Renderer& renderer) {}
             virtual void OnImGuiRender() {}
     };
 }

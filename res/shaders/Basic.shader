@@ -21,7 +21,7 @@ void main()
 
  in vec2 v_TexCoord; // this receives the data from the vertex shader
 
- uniform vec4 u_Color; // u_ means that it's a uniform (comes from the CPU)
+ //uniform vec4 u_Color; // u_ means that it's a uniform (comes from the CPU)
  uniform sampler2D u_Texture;
 
 void main()
