@@ -71,32 +71,43 @@ int main(void)
         ImGui_ImplGlfw_InitForOpenGL(window, true);
         ImGui_ImplOpenGL3_Init("#version 130");
 
-        test::Test* currentTest = nullptr;
-        test::TestMenu* testMenu = new test::TestMenu(currentTest);
-        currentTest = testMenu;
+        bool isTestChosen = false;
+
+        test::Test* t = new test::Test();
 
         while (!glfwWindowShouldClose(window))
         {
             renderer.Clear();
 
+            t->OnUpdate(0.0f);
+            t->OnRender();
+
             ImGui_ImplOpenGL3_NewFrame();
             ImGui_ImplGlfw_NewFrame();
             ImGui::NewFrame();
 
-            if(currentTest){ // checking if it's not null
-                currentTest->OnUpdate(0.0f);
-                currentTest->OnRender();
-                ImGui::Begin("Test");
-                if(currentTest != testMenu && ImGui::Button("<-")){
-                    delete currentTest;
-                    currentTest = testMenu;
-                }
-                currentTest->OnImGuiRender();
-                ImGui::End();
-            }
+            t->OnImGuiRender();
 
             ImGui::Begin("Debug Window"); // Create a window called "Hello, world!" and append into it.
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
+            if(!isTestChosen){
+                ImGui::Text("Choose a test:");
+                if(ImGui::Button("Test1")){
+                    isTestChosen = true;
+                    t = new test::TestClearColor();
+                }
+                else if(ImGui::Button("Test2")){
+                    isTestChosen = true;
+                    t = new test::TestExercise();
+                };
+            }
+            else{
+                if(ImGui::Button("Go Back")){
+                    isTestChosen = false;
+                    delete t;
+                    t = new test::Test();
+                }
+            }
             ImGui::End();
 
             ImGui::Render();
@@ -106,10 +117,12 @@ int main(void)
             glfwPollEvents();
         }
 
+        delete t;
     }
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
     glfwTerminate();
+
     return 0;
 }
