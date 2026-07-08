@@ -75,6 +75,10 @@ int main(void)
         test::TestMenu* testMenu = new test::TestMenu(currentTest);
         currentTest = testMenu;
 
+        testMenu->RegisterTest<test::TestClearColor>("Clear Color");
+        
+        testMenu->RegisterTest<test::TestExercise>("Homework");
+
         while (!glfwWindowShouldClose(window))
         {
             renderer.Clear();
@@ -95,18 +99,18 @@ int main(void)
                 ImGui::End();
             }
 
-            ImGui::Begin("Debug Window"); // Create a window called "Hello, world!" and append into it.
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-
             ImGui::Render();
             ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
 
             glfwSwapBuffers(window);
             glfwPollEvents();
         }
-
+        delete currentTest;
+        if(currentTest != testMenu){
+            delete testMenu;
+        }
     }
+
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImGui::DestroyContext();
