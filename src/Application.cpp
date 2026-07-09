@@ -22,6 +22,8 @@
 #include "vendor/imgui/imgui_impl_glfw.h"
 
 #include "tests/TestClearColor.h"
+#include "tests/TestTexture2D.h"
+
 #include "tests/TestExercise.h"
 
 // a Render works like this: you give it a command and it renders that thing
@@ -76,6 +78,7 @@ int main(void)
         currentTest = testMenu;
 
         testMenu->RegisterTest<test::TestClearColor>("Clear Color");
+        testMenu->RegisterTest<test::TestTexture2D>("2D Texture");
         
         testMenu->RegisterTest<test::TestExercise>("Homework");
 
